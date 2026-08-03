@@ -3,20 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://w3.org viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🫛</text></svg>">
-    <title>FFPEA - FFmpeg Photosensitivity Epilepsy Analyzer</title>
+    <title>FFPEA — FFmpeg Photosensitivity Epilepsy Analyzer</title>
     
     <script src="coi-serviceworker.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.0/dist/ffmpeg.min.js"></script>
+    
+    <script src="https://jsdelivr.net"></script>
     
     <script>
         if (window.matchMedia('(prefers-color-scheme: light)').matches) {
             document.documentElement.classList.add('light-theme');
         }
     </script>
+    
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://w3.org viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🫛</text></svg>">
 
     <style>
-        .pewa-preloader {
+        .ffpea-preloader {
             position: fixed;
             top: 0; left: 0;
             width: 100vw; height: 100vh;
@@ -32,12 +34,12 @@
             transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.4s;
         }
 
-        html.light-theme .pewa-preloader {
+        html.light-theme .-preloader {
             background: #f8fafc;
             color: #020617;
         }
 
-        .pewa-preloader.fade-hide {
+        .-preloader.fade-hide {
             opacity: 0;
             visibility: hidden;
         }
@@ -236,7 +238,7 @@
     </style>
 </head>
 <body class="no-transition">
-<div class="pewa-preloader" id="preloader">PEWA • INITIALIZING CORE...</div>
+<div class="ffpea-preloader" id="preloader">FFPEA • INITIALIZING CORE...</div>
 <header class="app-header">
     <div>
         <h1>FFPEA <span style="font-size: 16px; margin: 0 4px; vertical-align: middle;">🫛</span> <div class="subtitle" id="lng-sub">Photosensitivity Epilepsy Warning Analyzer</div></h1>
