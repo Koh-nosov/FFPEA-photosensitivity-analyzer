@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FFPEA — FFmpeg Photosensitivity Epilepsy Analyzer</title>
+    <title>FFPEA - FFmpeg Photosensitivity Epilepsy Analyzer</title>
     
-    <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.11.0/dist/ffmpeg.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.0/dist/ffmpeg.min.js"></script>
     
     <script>
         if (window.matchMedia('(prefers-color-scheme: light)').matches) {
@@ -460,8 +460,6 @@ function applyLocalization() {
     document.getElementById('lng-graph-threshold').innerText = lng.graphThreshold;
 }
 
-const { createFFmpeg, fetchFile } = FFmpeg;
-
 const video = document.getElementById('player');
 const videoContainer = document.getElementById('videoContainer');
 const canvas = document.getElementById('timeline');
@@ -486,15 +484,15 @@ async function initFFmpeg() {
     try {
         statusDiv.innerText = lng.statusInit;
         
-        ffmpeg = createFFmpeg({
-            corePath: 'https://unpkg.com/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js',
+        ffmpeg = FFmpeg.createFFmpeg({
+            corePath: 'https://jsdelivr.net',
             log: false,
             progress: ({ ratio }) => {
                 const percent = Math.round(ratio * 100);
                 currentProgressPercent = percent;
                 progressBar.style.width = percent + '%';
                 if (percent < 100) {
-                    statusDiv.innerText = `${lng.statusRun} ${percent}%`;
+                    statusDiv.innerText = `${translations[currentLang].statusRun} ${percent}%`;
                 }
                 requestAnimationFrame(renderTimeline);
             }
@@ -552,7 +550,7 @@ btnAnalyze.addEventListener('click', async () => {
     let liveRenderTimer = null;
 
     try {
-        ffmpeg.FS('writeFile', 'input.mp4', await fetchFile(videoFileObject));
+        ffmpeg.FS('writeFile', 'input.mp4', await FFmpeg.fetchFile(videoFileObject));
 
         const updateLiveGraph = () => {
             try {
