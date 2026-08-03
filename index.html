@@ -3,10 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PEWA — Photosensitivity Epilepsy Warning Analyzer</title>
-
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://w3.org viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🫛</text></svg>">
+    <title>FFPEA - FFmpeg Photosensitivity Epilepsy Analyzer</title>
+    
     <script src="coi-serviceworker.js"></script>
-    <script src="unpkg/@ffmpeg/ffmpeg@0.11.0/dist/ffmpeg.min.js"></script>
+    <script src="https://jsdelivr.net"></script>
     
     <script>
         if (window.matchMedia('(prefers-color-scheme: light)').matches) {
@@ -278,7 +279,7 @@
     <div class="timeline-container">
         <div class="timeline-label">
             <span id="lng-graph-title">График рисков (badness)</span>
-            <span class="danger-indicator" id="lng-graph-threshold">— порог опасности (1.0)</span>
+            <span class="danger-indicator" id="lng-graph-threshold">- порог опасности (1.0)</span>
         </div>
         <canvas id="timeline" width="1800" height="80"></canvas>
     </div>
@@ -298,7 +299,7 @@ const translations = {
         statusSuccess: "🎉 Анализ завершён успешно!",
         statusError: "❌ Ошибка: {msg}",
         graphTitle: "График рисков фотосенситивности (badness)",
-        graphThreshold: "— порог опасности (1.0)",
+        graphThreshold: "- порог опасности (1.0)",
         thresholdLabel: "порог 1.0",
         secLabel: "с",
         play: "⏯ PLAY / PAUSE",
@@ -318,7 +319,7 @@ const translations = {
         statusSuccess: "🎉 Analysis completed successfully!",
         statusError: "❌ Error: {msg}",
         graphTitle: "Photosensitivity Risk Graph (badness)",
-        graphThreshold: "— danger threshold (1.0)",
+        graphThreshold: "- danger threshold (1.0)",
         thresholdLabel: "threshold 1.0",
         secLabel: "s",
         play: "⏯ PLAY / PAUSE",
@@ -486,7 +487,7 @@ async function initFFmpeg() {
         statusDiv.innerText = lng.statusInit;
         
         ffmpeg = createFFmpeg({
-            corePath: 'unpkg/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js',
+            corePath: 'https://jsdelivr.net',
             log: false,
             progress: ({ ratio }) => {
                 const percent = Math.round(ratio * 100);
@@ -613,7 +614,7 @@ function checkVideoBorder() {
 
 function renderTimeline() {
     const canvas = document.getElementById('timeline');
-    if (!canvas) return; // Если тег еще не отрисовался — вежливо ждем
+    if (!canvas) return; 
     
     const W = canvas.clientWidth;
     const H = canvas.clientHeight;
