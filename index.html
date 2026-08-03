@@ -7,7 +7,7 @@
     <title>FFPEA - FFmpeg Photosensitivity Epilepsy Analyzer</title>
     
     <script src="coi-serviceworker.js"></script>
-    <script src="https://jsdelivr.net"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.0/dist/ffmpeg.min.js"></script>
     
     <script>
         if (window.matchMedia('(prefers-color-scheme: light)').matches) {
@@ -487,7 +487,7 @@ async function initFFmpeg() {
         statusDiv.innerText = lng.statusInit;
         
         ffmpeg = createFFmpeg({
-            corePath: 'https://jsdelivr.net',
+            corePath: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js',
             log: false,
             progress: ({ ratio }) => {
                 const percent = Math.round(ratio * 100);
