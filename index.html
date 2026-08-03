@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PEWA — Photosensitivity Epilepsy Warning Analyzer</title>
+
+    <script src="coi-serviceworker.js"></script>
+    <script src="/unpkg/@ffmpeg/ffmpeg@0.11.0/dist/ffmpeg.min.js"></script>
+    
+    <script>
+        if (window.matchMedia('(prefers-color-scheme: light)').matches) {
+            document.documentElement.classList.add('light-theme');
+        }
+    </script>
+
+    <style>
+        .pewa-preloader {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            background: #060814;
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+            color: #64748b;
+            transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.4s;
+        }
+
+        html.light-theme .pewa-preloader {
+            background: #f8fafc;
+            color: #020617;
+        }
+
+        .pewa-preloader.fade-hide {
+            opacity: 0;
+            visibility: hidden;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        body {
+            --bg-main: #060814;
+            --bg-panel: #0d1127;
+            --bg-element: #161b3d;
+            --text-main: #f1f5f9;
+            --text-muted: #64748b; 
+            --border: #22295c;
+            --accent: #10b981;
+            --danger: #ef4444;
+            --slider: #38bdf8;
+        }
+
+        body.no-transition, 
+        body.no-transition *, 
+        body.no-transition .app-header, 
+        body.no-transition .controls-left, 
+        body.no-transition .timeline-container,
+        body.no-transition .video-container, 
+        body.no-transition .progress-wrapper,
+        body.no-transition .progress-bar,
+        body.no-transition #btn-play,
+        body.no-transition canvas#timeline {
+            transition: none !important;
+        }
+
+        body.light-theme {
+            --bg-main: #f8fafc;
+            --bg-panel: #ffffff;
+            --bg-element: #f1f5f9;
+            --text-main: #020617;
+            --text-muted: #020617;
+            --border: #cbd5e1;
+            --accent: #059669;
+            --danger: #dc2626;
+            --slider: #0284c7;
+        }
+
+        body {
+            background: var(--bg-main);
+            color: var(--text-main);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            transition: background 0.8s cubic-bezier(0.4, 0, 0.2, 1), color 0.8s cubic-bezier(0.4, 0, 0.2, 1); 
+        }
+
+        .app-header, 
+        .controls-left, 
+        .upload-box, 
+        .btn, 
+        .btn-primary, 
+        .circle-btn, 
+        .badge,
+        .video-container,
+        .timeline-container, 
+        .progress-wrapper,
+        .progress-bar,
+        #btn-play,
+        canvas#timeline {
+            transition: background 0.8s cubic-bezier(0.4, 0, 0.2, 1), 
+                        border-color 0.8s cubic-bezier(0.4, 0, 0.2, 1), 
+                        color 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .app-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--bg-panel);
+            padding: 12px 24px;
+            border-bottom: 1px solid var(--border);
+            height: 56px;
+        }
+        .app-header h1 { font-size: 18px; font-weight: 600; letter-spacing: -0.3px; }
+        .app-header h1 span { color: var(--accent); }
+        .app-header .subtitle { color: var(--text-muted); font-size: 12px; margin-left: 10px; font-weight: 400; display: inline-block; }
+
+        .header-actions { 
+            display: flex; 
+            gap: 12px; 
+            align-items: center;
+            margin-left: auto;
+        }
+        .badge {
+            background: var(--bg-element);
+            padding: 5px 12px;
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--text-muted);
+            border-radius: 4px;
+            border: 1px solid var(--border);
+            white-space: nowrap;
+            height: 28px;
+            display: inline-flex;
+            align-items: center;
+        }
+
+        .circle-btn {
+            background: var(--bg-element);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            padding: 4px 10px;
+            height: 28px;
+            min-width: 36px;
+            border-radius: 4px;
+            cursor: pointer;
+            display: inline-flex; 
+            align-items: center; 
+            justify-content: center;
+            font-size: 12px; 
+            font-weight: 500;
+        }
+        .circle-btn:hover { border-color: var(--text-muted); background: var(--border); }
+
+        .app-content { flex: 1; display: flex; flex-direction: column; height: calc(100vh - 56px); min-height: 0; }
+        .main-layout { flex: 1; display: flex; background: var(--bg-main); border-bottom: 1px solid var(--border); min-height: 0; }
+
+        .controls-left { width: 240px; background: var(--bg-panel); border-right: 1px solid var(--border); padding: 20px; display: flex; flex-direction: column; gap: 10px; }
+        .upload-box { border: 1px dashed var(--border); padding: 14px; text-align: center; background: var(--bg-element); margin-bottom: 5px; position: relative; cursor: pointer; border-radius: 6px; }
+        .upload-box input[type="file"] { position: absolute; left: 0; top: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
+        .upload-box span { font-size: 12px; color: var(--text-muted); font-weight: 500; }
+
+        .btn { display: inline-flex; align-items: center; justify-content: center; padding: 10px 16px; border: 1px solid var(--border); border-radius: 6px; font-weight: 500; font-size: 13px; cursor: pointer; background: var(--bg-element); color: var(--text-main); transition: all 0.15s ease; width: 100%; }
+        .btn:hover { background: var(--border); }
+        .btn-primary { background: var(--accent); color: white; border: none; font-weight: 600; }
+        .btn-primary:hover { opacity: 0.9; }
+        .btn-danger { color: var(--danger); border-color: var(--danger); background: transparent; }
+        .btn-danger:hover { background: var(--danger); color: white; }
+
+        #status { font-size: 12px; color: var(--text-muted); text-align: center; margin-top: 5px; font-weight: 500; }
+        .progress-wrapper { width: 100%; height: 4px; background: var(--bg-element); overflow: hidden; margin-top: 5px; border-radius: 2px; }
+        .progress-bar { height: 100%; width: 0%; background: var(--accent); transition: width 0.1s linear; }
+
+        .video-container {
+            flex: 1;
+            background: #02040a; 
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 24px;
+            border: 4px solid var(--border); 
+        }
+        body.light-theme .video-container { background: #000; }
+        .video-container video { max-width: 100%; max-height: 100%; object-fit: contain; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5); }
+
+        .timeline-container { 
+            height: 130px;
+            background: var(--bg-panel); 
+            padding: 16px 24px; 
+            display: flex; 
+            flex-direction: column; 
+        }
+        .timeline-label { display: flex; justify-content: space-between; font-size: 12px; font-weight: 500; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .danger-indicator { color: var(--danger); font-weight: 600; }
+        canvas#timeline {
+            width: 100%;
+            flex: 1;
+            background: var(--bg-element);
+            border: 1px solid var(--border);
+            cursor: pointer;
+            display: block;
+            border-radius: 6px;
+            
+            transition: background 0.8s cubic-bezier(0.4, 0, 0.2, 1), 
+                        border-color 0.8s cubic-bezier(0.4, 0, 0.2, 1),
+                        filter 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+            
+            filter: invert(0) contrast(1);
+        }
+
+        body.light-theme canvas#timeline {
+            filter: invert(0.05) contrast(1.05) brightness(0.95);
+        }
+
+        @media (max-width: 768px) {
+            body { overflow-y: auto; height: auto; }
+            .app-content { height: auto; overflow: visible; }
+            .main-layout { flex-direction: column; height: auto; }
+            .controls-left { width: 100%; border-right: none; border-bottom: 1px solid var(--border); }
+            .video-container { height: 300px; padding: 10px; }
+            .timeline-container { height: 180px; padding: 10px; }
+        }
+    </style>
+</head>
+<body class="no-transition">
+<div class="pewa-preloader" id="preloader">PEWA • INITIALIZING CORE...</div>
+<header class="app-header">
+    <div>
+        <h1>FFPEA <span style="font-size: 16px; margin: 0 4px; vertical-align: middle;">🫛</span> <div class="subtitle" id="lng-sub">Photosensitivity Epilepsy Warning Analyzer</div></h1>
+    </div>
+    <div class="header-actions">
+        <button class="circle-btn" id="themeToggle" title="Toggle Theme">☾</button>
+        <button class="circle-btn" id="langToggle" title="Change Language">🌐︎</button>
+        <div class="badge">v1.0 open tool</div>
+    </div>
+</header>
+
+
+<div class="app-content">
+    <div class="main-layout">
+        <div class="controls-left">
+            <div class="upload-box">
+                <span id="lng-select">📁 Выбрать видео</span>
+                <input type="file" id="video-file" accept="video/*">
+            </div>
+            
+            <button class="btn btn-primary" id="btn-analyze" style="display:none;"></button>
+            
+            <div id="status"></div>
+            <div class="progress-wrapper">
+                <div class="progress-bar" id="progress-bar"></div>
+            </div>
+            
+            <hr style="border: 0; border-top: 1px solid #374151; margin: 10px 0;">
+            
+            <button class="btn" id="btn-play">⏯ PLAY / PAUSE</button>
+            <button class="btn btn-danger" id="btn-prev">◀ PREV</button>
+            <button class="btn btn-danger" id="btn-next">NEXT ▶</button>
+        </div>
+        
+        <div class="video-container" id="videoContainer">
+            <video id="player" crossorigin="anonymous"></video>
+        </div>
+    </div>
+
+    <div class="timeline-container">
+        <div class="timeline-label">
+            <span id="lng-graph-title">График рисков (badness)</span>
+            <span class="danger-indicator" id="lng-graph-threshold">— порог опасности (1.0)</span>
+        </div>
+        <canvas id="timeline" width="1800" height="80"></canvas>
+    </div>
+</div>
+
+<script>
+
+const translations = {
+    ru: {
+        sub: "Анализатор видео на риски эпилепсии на базе FFmpeg",
+        select: "📁 Выбрать видеофайл",
+        analyze: "🚀 Запустить анализ",
+        videoLoaded: "📹 Видео загружено ({dur} сек). Готово к анализу.",
+        statusInit: "⏳ Загрузка ядра FFmpeg v0.11...",
+        statusReady: "✅ Ядро готово. Выберите видео.",
+        statusRun: "⚡ Анализ запущен...",
+        statusSuccess: "🎉 Анализ завершён успешно!",
+        statusError: "❌ Ошибка: {msg}",
+        graphTitle: "График рисков фотосенситивности (badness)",
+        graphThreshold: "— порог опасности (1.0)",
+        thresholdLabel: "порог 1.0",
+        secLabel: "с",
+        play: "⏯ PLAY / PAUSE",
+        prev: "◀ PREV",
+        next: "NEXT ▶",
+        loadError: "❌ Ошибка загрузки: {msg}",
+        analysisError: "❌ Ошибка анализа: {msg}",
+    },
+    en: {
+        sub: "FFmpeg Photosensitivity Epilepsy Analyzer",
+        select: "📁 Select Video File",
+        analyze: "🚀 Start Analysis",
+        videoLoaded: "📹 Video loaded ({dur} sec). Ready to analyze.",
+        statusInit: "⏳ Loading FFmpeg WASM core v0.11...",
+        statusReady: "✅ Core ready. Select a video.",
+        statusRun: "⚡ Analysis in progress...",
+        statusSuccess: "🎉 Analysis completed successfully!",
+        statusError: "❌ Error: {msg}",
+        graphTitle: "Photosensitivity Risk Graph (badness)",
+        graphThreshold: "— danger threshold (1.0)",
+        thresholdLabel: "threshold 1.0",
+        secLabel: "s",
+        play: "⏯ PLAY / PAUSE",
+        prev: "◀ PREV",
+        next: "NEXT ▶",
+        loadError: "❌ Load error: {msg}",
+        analysisError: "❌ Analysis error: {msg}",
+    }
+};
+
+let currentLang = navigator.language.startsWith('ru') ? 'ru' : 'en';
+
+function applyLanguage(lang) {
+    currentLang = lang;
+    const lng = translations[lang];
+    
+    document.getElementById('lng-sub').innerText = lng.sub;
+    document.getElementById('lng-select').innerText = lng.select;
+    document.getElementById('lng-graph-title').innerText = lng.graphTitle;
+    document.getElementById('lng-graph-threshold').innerText = lng.graphThreshold;
+    
+    document.getElementById('btn-analyze').innerText = lng.analyze;
+    document.getElementById('btn-play').innerText = lng.play;
+    document.getElementById('btn-prev').innerText = lng.prev;
+    document.getElementById('btn-next').innerText = lng.next;
+    
+    renderTimeline();
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+    applyLanguage(currentLang);
+    
+    document.getElementById('langToggle').addEventListener('click', function() {
+        const newLang = currentLang === 'ru' ? 'en' : 'ru';
+        applyLanguage(newLang);
+    });
+
+    const themeBtn = document.getElementById('themeToggle');
+
+    function updateThemeUI() {
+        if (document.body.classList.contains('light-theme')) {
+            themeBtn.innerText = '☼';
+        } else {
+            themeBtn.innerText = '☾';
+        }
+        renderTimeline(); 
+    }
+
+    const prefersLight = window.matchMedia('(prefers-color-scheme: light)');
+    
+    if (document.documentElement.classList.contains('light-theme') || prefersLight.matches) {
+        document.body.classList.add('light-theme');
+        document.documentElement.classList.add('light-theme');
+    } else {
+        document.body.classList.remove('light-theme');
+        document.documentElement.classList.remove('light-theme');
+    }
+    updateThemeUI();
+
+    themeProgress = document.body.classList.contains('light-theme') ? 1.0 : 0.0;
+    themeAnimationId = null;
+
+    function animateCanvasTheme(targetValue) {
+        if (themeAnimationId) cancelAnimationFrame(themeAnimationId);
+        const startTime = performance.now();
+        const startValue = themeProgress;
+        const duration = 800;
+
+        function step(now) {
+            const elapsed = now - startTime;
+            const t = Math.min(1, elapsed / duration);
+            
+            const ease = t * t * (3 - 2 * t);
+            
+            themeProgress = startValue + (targetValue - startValue) * ease;
+            renderTimeline(); 
+
+            if (t < 1) {
+                themeAnimationId = requestAnimationFrame(step);
+            } else {
+                themeProgress = targetValue;
+                renderTimeline();
+            }
+        }
+        themeAnimationId = requestAnimationFrame(step);
+    }
+
+    themeBtn.addEventListener('click', function() {
+        document.body.classList.toggle('light-theme');
+        const isLight = document.body.classList.contains('light-theme');
+        themeBtn.innerText = isLight ? '☼' : '☾';
+        
+        animateCanvasTheme(isLight ? 1.0 : 0.0);
+    });
+
+    prefersLight.addEventListener('change', e => {
+        if (e.matches) {
+            document.body.classList.add('light-theme');
+            animateCanvasTheme(1.0);
+        } else {
+            document.body.classList.remove('light-theme');
+            animateCanvasTheme(0.0);
+        }
+        updateThemeUI();
+    });
+
+    setTimeout(() => {
+        const preloader = document.getElementById('preloader');
+        if (preloader) preloader.classList.add('fade-hide');
+        
+        document.body.classList.remove('no-transition');
+        
+        renderTimeline();
+    }, 150);
+});
+
+
+function setStatus(key, params = {}) {
+    const lng = translations[currentLang];
+    let msg = lng[key] || key;
+    for (let [k, v] of Object.entries(params)) {
+        msg = msg.replace(`{${k}}`, v);
+    }
+    statusDiv.innerText = msg;
+}
+const lng = translations[currentLang];
+
+document.addEventListener("DOMContentLoaded", () => {
+    const btn = document.getElementById('btn-analyze');
+    if (btn) btn.innerText = lng.analyze;
+});
+
+function applyLocalization() {
+    document.getElementById('lng-sub').innerText = lng.sub;
+    document.getElementById('lng-select').innerText = lng.select;
+    document.getElementById('btn-analyze').innerText = lng.analyze;
+    document.getElementById('lng-graph-title').innerText = lng.graphTitle;
+    document.getElementById('lng-graph-threshold').innerText = lng.graphThreshold;
+}
+
+const { createFFmpeg, fetchFile } = FFmpeg;
+
+const video = document.getElementById('player');
+const videoContainer = document.getElementById('videoContainer');
+const canvas = document.getElementById('timeline');
+const ctx = canvas.getContext('2d');
+const statusDiv = document.getElementById('status');
+const progressBar = document.getElementById('progress-bar');
+const btnAnalyze = document.getElementById('btn-analyze');
+
+let ffmpeg = null;
+let badnessData = [];
+let videoFileObject = null;
+const FPS = 25;
+let isDragging = false;
+let currentProgressPercent = 0;
+
+let themeProgress = document.documentElement.classList.contains('light-theme') ? 1.0 : 0.0;
+let themeAnimationId = null;
+
+
+
+async function initFFmpeg() {
+    try {
+        statusDiv.innerText = lng.statusInit;
+        
+        ffmpeg = createFFmpeg({
+            corePath: 'http://localhost:8000/unpkg/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js',
+            log: false,
+            progress: ({ ratio }) => {
+                const percent = Math.round(ratio * 100);
+                currentProgressPercent = percent;
+                progressBar.style.width = percent + '%';
+                if (percent < 100) {
+                    statusDiv.innerText = `${lng.statusRun} ${percent}%`;
+                }
+                requestAnimationFrame(renderTimeline);
+            }
+        });
+
+        await ffmpeg.load();
+        statusDiv.innerText = lng.statusReady;
+        progressBar.style.width = '0%';
+    } catch (err) {
+        setStatus('loadError', { msg: err.message });
+        console.error(err);
+    }
+}
+
+document.getElementById('video-file').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (file) {
+        videoFileObject = file;
+        video.src = URL.createObjectURL(file);
+        video.load();
+
+        video.onloadedmetadata = function() {
+            const dur = Math.floor(video.duration);
+            setStatus('videoLoaded', { dur });
+            btnAnalyze.style.display = 'inline-flex';
+            badnessData = [];
+            renderTimeline();
+            progressBar.style.width = '0%';
+        };
+    }
+});
+
+btnAnalyze.addEventListener('click', async () => {
+    if (!videoFileObject || !ffmpeg) return;
+    btnAnalyze.style.display = 'none';
+    statusDiv.innerText = lng.statusRun;
+    progressBar.style.width = '0%';
+    
+    currentProgressPercent = 0;
+    badnessData = [];
+    renderTimeline();
+
+    let liveRenderTimer = null;
+
+    try {
+        ffmpeg.FS('writeFile', 'input.mp4', await fetchFile(videoFileObject));
+
+        const updateLiveGraph = () => {
+            try {
+                const logUint8 = ffmpeg.FS('readFile', 'log.txt');
+                if (!logUint8 || logUint8.length === 0) return;
+
+                const logText = new TextDecoder("utf-8").decode(logUint8);
+                const lines = logText.split('\n');
+                
+                let temporaryData = [];
+                lines.forEach(line => {
+                    if (line.includes('lavfi.photosensitivity.badness')) {
+                        const parts = line.split('=');
+                        if (parts.length > 1) {
+                            const val = parseFloat(parts[1]);
+                            if (!isNaN(val)) temporaryData.push(val);
+                        }
+                    }
+                });
+                
+                if (temporaryData.length > badnessData.length) {
+                    badnessData = temporaryData;
+                    requestAnimationFrame(renderTimeline);
+                }
+            } catch (e) {
+
+            }
+        };
+
+        liveRenderTimer = setInterval(updateLiveGraph, 500);
+
+        await ffmpeg.run(
+            '-i', 'input.mp4',
+            '-vf', 'photosensitivity=frames=30,metadata=mode=print:file=log.txt',
+            '-f', 'null', '-'
+        );
+
+        clearInterval(liveRenderTimer);
+
+        updateLiveGraph();
+
+        statusDiv.innerText = `${lng.statusSuccess} (${badnessData.length})`;
+        progressBar.style.width = '100%';
+        currentProgressPercent = 100;
+        
+        setTimeout(() => { progressBar.style.width = '0%'; }, 800);
+        renderTimeline();
+
+        try {
+            ffmpeg.FS('unlink', 'input.mp4');
+            ffmpeg.FS('unlink', 'log.txt');
+        } catch(e) {}
+
+    } catch (error) {
+        if (liveRenderTimer) clearInterval(liveRenderTimer);
+        console.error('Ошибка анализа:', error);
+        statusDiv.innerText = '❌ Ошибка: ' + error.message;
+        btnAnalyze.style.display = 'inline-flex';
+        progressBar.style.width = '0%';
+    }
+});
+
+function checkVideoBorder() {
+    const frame = Math.floor(video.currentTime * FPS);
+    if (badnessData.length > 0 && frame < badnessData.length && badnessData[frame] > 1.0) {
+        videoContainer.style.borderColor = getComputedStyle(document.body).getPropertyValue('--danger').trim() || '#ef4444';
+    } else {
+        videoContainer.style.borderColor = getComputedStyle(document.body).getPropertyValue('--bg-main').trim() || '#060814';
+    }
+}
+
+function renderTimeline() {
+    const W = canvas.clientWidth;
+    const H = canvas.clientHeight;
+    canvas.width = W;
+    canvas.height = H;
+
+    function mixColors(r1, g1, b1, r2, g2, b2) {
+        const r = Math.round(r1 + (r2 - r1) * themeProgress);
+        const g = Math.round(g1 + (g2 - g1) * themeProgress);
+        const b = Math.round(b1 + (b2 - b1) * themeProgress);
+        return `rgb(${r}, ${g}, ${b})`;
+    }
+
+    const colorBgElement = mixColors(22, 27, 61, 241, 245, 249);
+    
+    const colorTextMuted = mixColors(100, 116, 139, 2, 6, 23);
+
+    const colorDanger = mixColors(239, 68, 68, 220, 38, 38);
+
+    const colorAccent = mixColors(16, 185, 129, 5, 150, 105);
+
+    const colorSlider = mixColors(56, 189, 248, 2, 132, 199);
+
+    ctx.fillStyle = colorBgElement; 
+    ctx.fillRect(0, 0, W, H);
+
+    const duration = video.duration || 60;
+    const xScale = W / duration;
+
+    if (currentProgressPercent > 0) {
+        const progressX = (currentProgressPercent / 100) * W;
+        ctx.fillStyle = 'rgba(16, 185, 129, 0.05)'; 
+        ctx.fillRect(0, 0, progressX, H);
+    }
+
+    let maxVal = 1.5;
+    if (badnessData.length > 0) {
+        for (let i = 0; i < badnessData.length; i++) {
+            if (badnessData[i] > maxVal) maxVal = badnessData[i];
+        }
+    }
+    const yScale = H / (maxVal * 1.2);
+
+    const thresholdY = H - (1.0 * yScale);
+    ctx.beginPath();
+    ctx.moveTo(0, thresholdY);
+    ctx.lineTo(W, thresholdY);
+    ctx.strokeStyle = colorDanger;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    ctx.fillStyle = colorDanger;
+    ctx.font = '11px sans-serif';
+    ctx.fillText(lng.thresholdLabel, 6, thresholdY - 6);
+
+    ctx.fillStyle = colorTextMuted;
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'center';
+    for (let sec = 0; sec <= duration; sec += 5) {
+        const x = sec * xScale;
+        if (x > W) break;
+        ctx.fillRect(x, H - 6, 1, 6);
+        ctx.fillText(`${sec}${lng.secLabel}`, x, H - 10);
+    }
+
+    if (badnessData.length === 0) return;
+
+    const totalFrames = badnessData.length;
+    const singleFrameWidth = xScale / FPS; 
+
+    for (let i = 0; i < totalFrames; i++) {
+        const x = (i / FPS) * xScale;
+        ctx.fillStyle = badnessData[i] > 1.0 ? 'rgba(239, 68, 68, 0.08)' : 'rgba(16, 185, 129, 0.02)';
+        ctx.fillRect(x, 0, singleFrameWidth + 0.3, H);
+    }
+
+    const progressLimitX = (currentProgressPercent / 100) * W;
+
+    ctx.lineWidth = 2;
+    for (let i = 1; i < totalFrames; i++) {
+        const x1 = ((i - 1) / FPS) * xScale;
+        const y1 = H - (badnessData[i - 1] * yScale);
+        const x2 = (i / FPS) * xScale;
+        const y2 = H - (badnessData[i] * yScale);
+
+        if (x2 > progressLimitX && currentProgressPercent < 100) break; 
+
+        const isPoint1Dangerous = badnessData[i - 1] > 1.0;
+        const isPoint2Dangerous = badnessData[i] > 1.0;
+
+        if (isPoint1Dangerous === isPoint2Dangerous) {
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.strokeStyle = isPoint2Dangerous ? colorDanger : colorAccent;
+            ctx.stroke();
+        } else {
+            const intersectX = x1 + (x2 - x1) * ((thresholdY - y1) / (y2 - y1));
+
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(intersectX, thresholdY);
+            ctx.strokeStyle = isPoint1Dangerous ? colorDanger : colorAccent;
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(intersectX, thresholdY);
+            ctx.lineTo(x2, y2);
+            ctx.strokeStyle = isPoint2Dangerous ? colorDanger : colorAccent;
+            ctx.stroke();
+        }
+    }
+
+
+    const currentTime = video.currentTime || 0;
+    const sliderX = currentTime * xScale;
+    if (sliderX >= 0 && sliderX <= W) {
+        ctx.beginPath();
+        ctx.moveTo(sliderX, 0);
+        ctx.lineTo(sliderX, H);
+        ctx.strokeStyle = colorSlider; 
+        ctx.lineWidth = 2.5; 
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(sliderX, 0, 5, 0, 2 * Math.PI);
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
+        ctx.strokeStyle = colorSlider;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+    }
+}
+
+video.addEventListener('timeupdate', function() {
+    if (!isDragging) {
+        renderTimeline();
+        const frame = Math.floor(video.currentTime * FPS);
+        if (badnessData.length > 0 && frame < badnessData.length && badnessData[frame] > 1.0) {
+            videoContainer.style.borderColor = '#dc2626';
+            videoContainer.style.borderWidth = '4px';
+        } else {
+            videoContainer.style.borderColor = '#d0d9e4';
+            videoContainer.style.borderWidth = '3px';
+        }
+    }
+});
+
+function getTimeFromMouse(e) {
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width;
+    const clamped = Math.min(1, Math.max(0, x));
+    return clamped * video.duration;
+}
+
+let wasPlayingBeforeDrag = false;
+
+canvas.addEventListener('mousedown', function(e) {
+    if (badnessData.length === 0) return;
+    isDragging = true;
+    
+    wasPlayingBeforeDrag = !video.paused; 
+    
+    video.pause();
+    const newTime = getTimeFromMouse(e);
+    video.currentTime = newTime;
+    renderTimeline();
+    checkVideoBorder();
+});
+
+window.addEventListener('mousemove', function(e) {
+    if (isDragging) {
+        const newTime = getTimeFromMouse(e);
+        video.currentTime = newTime;
+        renderTimeline();
+        checkVideoBorder();
+    }
+});
+
+window.addEventListener('mouseup', function() {
+    if (isDragging) {
+        isDragging = false;
+        
+        if (wasPlayingBeforeDrag) {
+            video.play();
+        } else {
+            renderTimeline();
+            checkVideoBorder();
+        }
+    }
+});
+
+document.getElementById('btn-play').addEventListener('click', () => {
+    video.paused ? video.play() : video.pause();
+});
+
+document.getElementById('btn-next').addEventListener('click', () => {
+    if (badnessData.length === 0) return;
+    const currentFrame = Math.floor(video.currentTime * FPS);
+    for (let i = currentFrame + 5; i < badnessData.length; i++) {
+        if (badnessData[i] > 1.0) {
+            video.currentTime = i / FPS;
+            break;
+        }
+    }
+});
+
+document.getElementById('btn-prev').addEventListener('click', () => {
+    if (badnessData.length === 0) return;
+    const currentFrame = Math.floor(video.currentTime * FPS);
+    for (let i = currentFrame - 5; i >= 0; i--) {
+        if (badnessData[i] > 1.0) {
+            video.currentTime = i / FPS;
+            break;
+        }
+    }
+});
+
+initFFmpeg();
+</script>
+</body>
+</html>
