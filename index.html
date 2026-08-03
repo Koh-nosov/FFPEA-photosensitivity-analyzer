@@ -6,7 +6,7 @@
     <title>PEWA — Photosensitivity Epilepsy Warning Analyzer</title>
 
     <script src="coi-serviceworker.js"></script>
-    <script src="/unpkg/@ffmpeg/ffmpeg@0.11.0/dist/ffmpeg.min.js"></script>
+    <script src="unpkg/@ffmpeg/ffmpeg@0.11.0/dist/ffmpeg.min.js"></script>
     
     <script>
         if (window.matchMedia('(prefers-color-scheme: light)').matches) {
@@ -486,7 +486,7 @@ async function initFFmpeg() {
         statusDiv.innerText = lng.statusInit;
         
         ffmpeg = createFFmpeg({
-            corePath: 'http://localhost:8000/unpkg/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js',
+            corePath: 'unpkg/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js',
             log: false,
             progress: ({ ratio }) => {
                 const percent = Math.round(ratio * 100);
@@ -612,6 +612,9 @@ function checkVideoBorder() {
 }
 
 function renderTimeline() {
+    const canvas = document.getElementById('timeline');
+    if (!canvas) return; // Если тег еще не отрисовался — вежливо ждем
+    
     const W = canvas.clientWidth;
     const H = canvas.clientHeight;
     canvas.width = W;
