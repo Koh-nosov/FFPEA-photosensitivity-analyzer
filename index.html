@@ -485,7 +485,7 @@ async function initFFmpeg() {
         statusDiv.innerText = lng.statusInit;
         
         ffmpeg = FFmpeg.createFFmpeg({
-            corePath: 'https://jsdelivr.net',
+            corePath: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js',
             log: false,
             progress: ({ ratio }) => {
                 const percent = Math.round(ratio * 100);
